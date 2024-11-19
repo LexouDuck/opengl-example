@@ -62,7 +62,8 @@ CXXFLAGS = \
 	-MMD \
 	$(CXXFLAGS_$(OSFLAG)) \
 	-g # "-g" for debug, "-O" for release
-CXXFLAGS_windows	= -mwindows -I./ -L./
+	
+CXXFLAGS_windows	= -mwindows -I./ -L./ -I./lib
 CXXFLAGS_linux	= -Wno-unused-result #-fsanitize=address -ldl
 CXXFLAGS_macos	= 
 
@@ -116,10 +117,10 @@ BINDIR = ./bin
 HDRS = \
 
 SRCS = \
-example.c \
+main.cpp \
 
 # object files, for minimal recompiling
-OBJS = ${SRCS:%.c=$(OBJDIR)/$(OSFLAG)/%.o}
+OBJS = ${SRCS:%.cpp=$(OBJDIR)/$(OSFLAG)/%.o}
 # object file include dependency lists, for minimal recompiling
 DEPS = ${OBJS:.o=.d}
 
@@ -153,7 +154,7 @@ $(BINDIR)/$(OSFLAG)/$(NAME): $(OBJS) $(HDRS)
 	@$(COMPILER) $(OBJS) -o $@ $(COMPILERFLAGS) $(LDFLAGS)
 	@printf $(GREEN)"OK!"$(RESET)"\n"
 
-$(OBJDIR)/$(OSFLAG)/%.o : $(SRCDIR)/%.c
+$(OBJDIR)/$(OSFLAG)/%.o : $(SRCDIR)/%.cpp
 	@mkdir -p `dirname $@`
 	@printf "Compiling file: "$@" -> "
 	@$(COMPILER) $(COMPILERFLAGS) $(INCLUDE) -c $< -o $@ -MF $(OBJDIR)/$*.d
