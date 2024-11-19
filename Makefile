@@ -34,7 +34,7 @@ endif
 
 # C compiler
 CC = $(CC_$(OSFLAG))
-CC_windows	= gcc
+CC_windows	= x86_64-w64-mingw32-gcc
 CC_linux	= gcc
 CC_macos	= gcc
 # C compiler flags
@@ -51,7 +51,7 @@ CFLAGS_macos	=
 
 # C++ compiler
 CXX = $(CXX_$(OSFLAG))
-CXX_windows	= g++
+CXX_windows	= x86_64-w64-mingw32-g++
 CXX_linux	= g++
 CXX_macos	= g++
 # C++ compiler flags
