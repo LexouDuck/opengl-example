@@ -45,7 +45,7 @@ CFLAGS = \
 	-MMD \
 	$(CFLAGS_$(OSFLAG)) \
 	-g # "-g" for debug, "-O" for release
-CFLAGS_windows	= -mwindows -I./ -L./ -I./lib
+CFLAGS_windows	= -I./ -I$(LIBDIR) -mwindows
 CFLAGS_linux	= -Wno-unused-result #-fsanitize=address -ldl
 CFLAGS_macos	= 
 
@@ -62,13 +62,13 @@ CXXFLAGS = \
 	-MMD \
 	$(CXXFLAGS_$(OSFLAG)) \
 	-g # "-g" for debug, "-O" for release
-CXXFLAGS_windows	= -mwindows -I./ -L./
+CXXFLAGS_windows	= -I./ -I$(LIBDIR) -mwindows
 CXXFLAGS_linux	= -Wno-unused-result #-fsanitize=address -ldl
 CXXFLAGS_macos	= 
 
 # Linker
 LDFLAGS = $(LDFLAGS_$(OSFLAG))
-LDFLAGS_windows	= $(LIBS)
+LDFLAGS_windows	= -L./ -L$(LIBDIR) $(LIBS)
 LDFLAGS_linux	= $(LIBS)
 LDFLAGS_macos	= $(LIBS)
 
@@ -91,7 +91,7 @@ LIBGLFW_macos	= -lglfw -framework Cocoa -framework OpenGL
 
 # window/input system: GLUT
 LIBGLUT = $(LIBGLUT_$(OSFLAG))
-LIBGLUT_windows	= -lopengl32 -lglu32 -lglut32
+LIBGLUT_windows	= -lglu32 -lglut32 -lopengl32
 LIBGLUT_linux	= -lGL -lGLU -lglut
 LIBGLUT_macos	= -framework Carbon -framework OpenGL -framework GLUT
 
