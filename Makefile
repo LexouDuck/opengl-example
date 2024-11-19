@@ -34,7 +34,7 @@ endif
 
 # C compiler
 CC = $(CC_$(OSFLAG))
-CC_windows	= i686-w64-mingw32-gcc
+CC_windows	= x86_64-w64-mingw32-gcc
 CC_linux	= gcc
 CC_macos	= gcc
 # C compiler flags
@@ -45,13 +45,13 @@ CFLAGS = \
 	-MMD \
 	$(CFLAGS_$(OSFLAG)) \
 	-g # "-g" for debug, "-O" for release
-CFLAGS_windows	= -mwindows -I./ -L./
+CFLAGS_windows	= -mwindows -I./ -L./ -I./lib
 CFLAGS_linux	= -Wno-unused-result #-fsanitize=address -ldl
 CFLAGS_macos	= 
 
 # C++ compiler
 CXX = $(CXX_$(OSFLAG))
-CXX_windows	= i686-w64-mingw32-g++
+CXX_windows	= x86_64-w64-mingw32-g++
 CXX_linux	= g++
 CXX_macos	= g++
 # C++ compiler flags
@@ -85,7 +85,7 @@ LIBMATH = -lm
 
 # window/input system: GLFW
 LIBGLFW = $(LIBGLFW_$(OSFLAG))
-LIBGLFW_windows	= $(LIBDIR)/glfw/lib-mingw-w64/libglfw3.a -lgdi32
+LIBGLFW_windows	= $(LIBDIR)/glfw/lib-mingw-w64/libglfw3.a -lgdi32 -lopengl32
 LIBGLFW_linux	= $$( pkg-config --libs glfw3 ) -lGL
 LIBGLFW_macos	= -lglfw -framework Cocoa -framework OpenGL
 
