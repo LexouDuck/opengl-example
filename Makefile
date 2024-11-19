@@ -24,6 +24,14 @@ endif
 
 ### Compilation
 
+ifeq ($(MODE),cpp)
+COMPILER = $(CXX)
+COMPILERFLAGS = $(CXXFLAGS)
+else
+COMPILER = $(CC)
+COMPILERFLAGS = $(CFLAGS)
+endif
+
 # C compiler
 CC = $(CC_$(OSFLAG))
 CC_windows	= i686-w64-mingw32-gcc
@@ -142,16 +150,16 @@ test: all
 $(BINDIR)/$(OSFLAG)/$(NAME): $(OBJS) $(HDRS)
 	@mkdir -p `dirname $@`
 	@printf "Compiling program: "$@" -> "
-	@$(CC) $(OBJS) -o $@ $(CFLAGS) $(LDFLAGS)
+	@$(COMPILER) $(OBJS) -o $@ $(COMPILERFLAGS) $(LDFLAGS)
 	@printf $(GREEN)"OK!"$(RESET)"\n"
 
 $(OBJDIR)/$(OSFLAG)/%.o : $(SRCDIR)/%.c
 	@mkdir -p `dirname $@`
 	@printf "Compiling file: "$@" -> "
-	@$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@ -MF $(OBJDIR)/$*.d
+	@$(COMPILER) $(COMPILERFLAGS) $(INCLUDE) -c $< -o $@ -MF $(OBJDIR)/$*.d
 	@printf $(GREEN)"OK!"$(RESET)"\n"
 
 -include ${DEPS}
 
 # used to have makefile understand these rules are not named after files
-.PHONY: all build libraries clean fclean re
+.PHONY: all build libraries clean fclean re test
