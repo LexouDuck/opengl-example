@@ -1,10 +1,35 @@
 NAME = opengl-example
 
-### Cross-platform stuff
+### Folders
 
-RESET	=	"\033[0m"
-RED		=	"\033[0;31m"
-GREEN	=	"\033[0;32m"
+LIBDIR = ./lib
+SRCDIR = ./src
+OBJDIR = ./obj
+BINDIR = ./bin
+
+### Files
+
+HDRS = \
+
+SRCS = \
+example.c \
+
+# object files, for minimal recompiling
+OBJS = ${SRCS:%.c=$(OBJDIR)/$(OSFLAG)/%.o}
+# object file include dependency lists, for minimal recompiling
+DEPS = ${OBJS:.o=.d}
+
+# window/input system chosen
+WINDOWER ?= GLFW
+#WINDOWER ?= GLUT
+#WINDOWER ?= SFML
+#WINDOWER ?= SDL2
+#WINDOWER ?= IMGUI
+
+# list of libraries that need to be built with their own makefiles
+LIBRARIES = 
+
+### Cross-platform stuff
 
 OSFLAG := 
 ifeq ($(OS),Windows_NT)
@@ -24,12 +49,11 @@ endif
 
 ### Compilation
 
+COMPILER      ?= $(CC)
+COMPILERFLAGS ?= $(CFLAGS)
 ifeq ($(MODE),cpp)
-COMPILER = $(CXX)
-COMPILERFLAGS = $(CXXFLAGS)
-else
-COMPILER = $(CC)
-COMPILERFLAGS = $(CFLAGS)
+COMPILER      ?= $(CXX)
+COMPILERFLAGS ?= $(CXXFLAGS)
 endif
 
 # C compiler
@@ -83,51 +107,93 @@ INCLUDE_macos	=
 
 LIBMATH = -lm
 
-# window/input system: GLFW
+# window/input system: GLFW -> https://www.glfw.org/
 LIBGLFW = $(LIBGLFW_$(OSFLAG))
 LIBGLFW_windows	= $(LIBDIR)/glfw/lib-mingw-w64/libglfw3.a -lgdi32 -lopengl32
 LIBGLFW_linux	= $$( pkg-config --libs glfw3 ) -lGL
 LIBGLFW_macos	= -lglfw -framework Cocoa -framework OpenGL
+PKGGLFW = $(PKGGLFW_$(OSFLAG))
+PKGGLFW_windows	= 
+PKGGLFW_linux	= libglfw3 libglfw3-dev
+PKGGLFW_macos	= libglfw3 libglfw3-dev
 
-# window/input system: GLUT
+# window/input system: GLUT -> https://www.opengl.org/resources/libraries/glut/
 LIBGLUT = $(LIBGLUT_$(OSFLAG))
 LIBGLUT_windows	= -lglu32 -lglut32 -lopengl32
 LIBGLUT_linux	= -lGL -lGLU -lglut
 LIBGLUT_macos	= -framework Carbon -framework OpenGL -framework GLUT
+PKGGLUT = $(PKGGLUT_$(OSFLAG))
+PKGGLUT_windows	= mingw-w64-x86_64-freeglut
+PKGGLUT_linux	= freeglut3-dev
+PKGGLUT_macos	= freeglut
 
-# window/input system: SDL2
+# window/input system: SFML -> https://www.sfml-dev.org/
+LIBSFML = $(LIBSFML_$(OSFLAG))
+LIBSFML_windows	= -lglu32 -lglut32 -lopengl32
+LIBSFML_linux	= -lGL -lGLU -lglut
+LIBSFML_macos	= -framework Carbon -framework OpenGL -framework GLUT
+PKGSFML = $(PKGSFML_$(OSFLAG))
+PKGSFML_windows	= 
+PKGSFML_linux	= libsfml-dev
+PKGSFML_macos	= libsfml-dev
+
+# window/input system: SDL2 -> https://www.libsdl.org/
 LIBSDL2 = $(LIBSDL2_$(OSFLAG))
 LIBSDL2_windows	= -L$(SDLDIR) -lSDL2
 LIBSDL2_linux	= -L$(SDLDIR) -lSDL2
 LIBSDL2_macos	= -L$(SDLDIR)/SDL2.framework/Versions/Current -F. -framework SDL2
+PKGSDL2 = $(PKGSDL2_$(OSFLAG))
+PKGSDL2_windows	= 
+PKGSDL2_linux	= libsdl2-dev
+PKGSDL2_macos	= libsdl2-dev
 
-# list of libraries that need to be built with their own makefiles
-LIBRARIES = 
+# window/input system: IMGUI -> https://www.dearimgui.com/
+LIBIMGUI = $(LIBSDL2_$(OSFLAG))
+LIBIMGUI_windows	= 
+LIBIMGUI_linux	= 
+LIBIMGUI_macos	= 
+PKGIMGUI = $(PKGSDL2_$(OSFLAG))
+PKGIMGUI_windows	= 
+PKGIMGUI_linux	= 
+PKGIMGUI_macos	= 
 
-### Folders
+### General utility stuff
 
-LIBDIR = ./lib
-SRCDIR = ./src
-OBJDIR = ./obj
-BINDIR = ./bin
+RESET	=	"\033[0m"
+RED		=	"\033[0;31m"
+GREEN	=	"\033[0;32m"
 
-### Files
+#! This allows us to use 'sudo' for certain operations while remaining cross-platform
+ifeq ($(OS),Windows_NT)
+	SUDO =
+else
+	SUDO = sudo
+endif
 
-HDRS = \
-
-SRCS = \
-example.c \
-
-# object files, for minimal recompiling
-OBJS = ${SRCS:%.c=$(OBJDIR)/$(OSFLAG)/%.o}
-# object file include dependency lists, for minimal recompiling
-DEPS = ${OBJS:.o=.d}
+#! The shell command to install a prerequisite program/library (uses the appropriate OS-specific package manager)
+#	@param 1	The name of the program/library/package to install
+install_prereq = \
+	if   [ -x "`command -v apk     `" ]; then $(SUDO) apk add --no-cache $(1) ; \
+	elif [ -x "`command -v apt-get `" ]; then $(SUDO) apt-get install    $(1) ; \
+	elif [ -x "`command -v brew    `" ]; then $(SUDO) brew    install    $(1) ; \
+	elif [ -x "`command -v choco   `" ]; then $(SUDO) choco   install    $(1) ; \
+	elif [ -x "`command -v pacman  `" ]; then $(SUDO) pacman  -S         $(1) ; \
+	elif [ -x "`command -v yum     `" ]; then $(SUDO) yum     install    $(1) ; \
+	elif [ -x "`command -v dnf     `" ]; then $(SUDO) dnf     install    $(1) ; \
+	elif [ -x "`command -v zypp    `" ]; then $(SUDO) zypp    install    $(1) ; \
+	elif [ -x "`command -v zypper  `" ]; then $(SUDO) zypper  install    $(1) ; \
+	else \
+		printf $(RED)"No package manager program was found. You must manually install: $(1)"$(RESET) >&2 ; \
+	fi
 
 ### Rules
 
 all: libraries build
 
 build: ./$(BINDIR)/$(OSFLAG)/$(NAME)
+
+prereq:
+	@$(call install_prereq,$(PKG$(WINDOWER)))
 
 libraries:
 	@for library in $(LIBRARIES) ; do $(MAKE) -C $(LIBDIR)/$$library ; done
@@ -162,4 +228,4 @@ $(OBJDIR)/$(OSFLAG)/%.o : $(SRCDIR)/%.c
 -include ${DEPS}
 
 # used to have makefile understand these rules are not named after files
-.PHONY: all build libraries clean fclean re test
+.PHONY: all build prereq libraries clean fclean re test
