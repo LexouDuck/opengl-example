@@ -4,12 +4,13 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 
 #include <cmath>
-#include "./Fonts/SwanSea.h"
-#include <Dynamic/Element.h>
+#include <Dynamic/Element.hpp>
 #include <stb/stb_truetype.h>
 #include <dbg.hpp>
 #include <fstream>
 #include <vector>
+
+#include "./Fonts/SwanSea.h"
 
 namespace Elements {
 
@@ -18,9 +19,10 @@ namespace Elements {
     public:
 
         float borderRadius;
-        Style::Color fontColor = Style::Color(.0, 1.0, 1.0, 1.0);
+        Style::Color fontColor = Style::Color(1, 1, 1, 1);
         float fontSize = 10.0f;
         float lineHeight = 2.0f;
+        bool center = true;
 
         GLuint fontTexture;     // Texture for the font atlas
         stbtt_bakedchar charData[96];  // ASCII 32..126
@@ -60,65 +62,110 @@ namespace Elements {
         // Render the text inside the box with a specific height, or calculate its dimensions if render is false
         Rect renderText(const char* text, float x, float y, float desiredTextHeight, bool render = true) {
 
-            loadFont(desiredTextHeight);
+    loadFont(desiredTextHeight);
 
-            // Save the original x position to reset after a line break
-            float startX = x;
+    // Save the original x position for line resets
+    float startX = x;
 
-            // Initialize min and max values for bounding box
-            float minX = std::numeric_limits<float>::max();
-            float minY = std::numeric_limits<float>::max();
-            float maxX = std::numeric_limits<float>::lowest();
-            float maxY = std::numeric_limits<float>::lowest();
+    // Calculate the total height for the text block
+    float totalHeight = 0;
+    const char* t = text;
+    while (*t) {
+        if (*t == '\n') {
+            totalHeight += desiredTextHeight * lineHeight;
+        }
+        ++t;
+    }
+    totalHeight += desiredTextHeight * lineHeight;  // Add height for the first line
 
-            if (render) {
-                glBindTexture(GL_TEXTURE_2D, fontTexture);
-                glEnable(GL_TEXTURE_2D);
-                glBegin(GL_QUADS);
-            }
+    // Initialize min and max values for bounding box
+    float minX = std::numeric_limits<float>::max();
+    float minY = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::lowest();
+    float maxY = std::numeric_limits<float>::lowest();
 
-            while (*text) {
+    // Adjust the initial y position to account for starting at the top, compensating for the first line's height
+    y -= totalHeight - desiredTextHeight * lineHeight;
 
-                // On a newline, reset x to the starting position and move y down by the line height
-                if (*text == '\n') {
+    if (render) {
+        glBindTexture(GL_TEXTURE_2D, fontTexture);
+        glEnable(GL_TEXTURE_2D);
+        glBegin(GL_QUADS);
+    }
 
-                    x = startX;
-                    y += desiredTextHeight * lineHeight;  // Adjust the y position to handle the new line
-                    ++text;  // Move to the next character
+    while (*text) {
 
-                    continue;
-                }
+        // Handle newline characters by resetting x and moving y down
+        if (*text == '\n') {
+            x = startX;
+            y += desiredTextHeight * lineHeight;  // Move y down
+            ++text;
+            continue;
+        }
 
+        // Measure the width of the current line if centering is enabled
+        if (center) {
+            const char* lineStart = text;
+            float lineWidth = 0.0f;
+
+            // Measure the width of the current line
+            while (*text && *text != '\n') {
                 if (*text >= 32 && *text < 128) {  // ASCII range
-                    stbtt_aligned_quad q;
-                    stbtt_GetBakedQuad(charData, 512, 512, *text - 32, &x, &y, &q, 1);
-
-                    // Update bounding box min/max values
-                    minX = std::min({minX, q.x0, q.x1});
-                    minY = std::min({minY, q.y0, q.y1});
-                    maxX = std::max({maxX, q.x0, q.x1});
-                    maxY = std::max({maxY, q.y0, q.y1});
-
-                    if (render) {
-                        // Render character as a textured quad with the adjusted size
-                        glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
-                        glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
-                        glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
-                        glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
-                    }
+                    stbtt_aligned_quad tempQuad;
+                    stbtt_GetBakedQuad(charData, 512, 512, *text - 32, &lineWidth, &y, &tempQuad, 0);
                 }
-
                 ++text;
             }
 
-            if (render) {
-                glEnd();
-                glDisable(GL_TEXTURE_2D);
-            }
+            // Calculate the horizontal offset for centering
+            float offset = (this->rect.width - lineWidth) / 2.0f;
 
-            // Return the bounding box dimensions (Rect) without rendering if render is false
-            return Rect(minX, minY, maxX - minX, maxY - minY);
+            // Reset the text pointer to the start of the line for rendering
+            text = lineStart;
+
+            // Adjust x position for centering
+            x = startX + offset;
         }
+
+        while (*text && *text != '\n') {  // Render characters until the end of the line or a newline character
+            if (*text >= 32 && *text < 128) {  // ASCII range
+                stbtt_aligned_quad q;
+                stbtt_GetBakedQuad(charData, 512, 512, *text - 32, &x, &y, &q, 1);
+
+                // Update bounding box min/max values
+                minX = std::min({minX, q.x0, q.x1});
+                minY = std::min({minY, q.y0, q.y1});
+                maxX = std::max({maxX, q.x0, q.x1});
+                maxY = std::max({maxY, q.y0, q.y1});
+
+                if (render) {
+                    // Render character as a textured quad
+                    glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
+                    glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
+                    glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
+                    glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
+                }
+            }
+            ++text;
+        }
+
+        // Move to the next line
+        if (*text == '\n') {
+            x = startX;
+            y += desiredTextHeight * lineHeight;
+            ++text;
+        }
+    }
+
+    if (render) {
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+    }
+
+    // Return the bounding box dimensions
+    return Rect(minX, minY, maxX - minX, maxY - minY);
+}
+
 
         Rect resolveStaticSize() override {
 

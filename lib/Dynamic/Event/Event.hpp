@@ -13,6 +13,9 @@ namespace Dynamic {
             Pos up;
             Pos pos;
             Pos drag;
+            Pos diff;
+            Pos dragStart;
+            Pos dragEnd;
             Pos wheel;
 
             bool lb = false;

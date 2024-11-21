@@ -3,6 +3,7 @@
 
 #include <Dynamic/Element.hpp>
 #include <Dynamic/Elements/Circle.hpp>
+#include <Dynamic/Elements/Text/Text.hpp>
 
 class Interface : public Element {
 
@@ -10,21 +11,31 @@ class Interface : public Element {
 
     // Children
     Elements::Circle* circle;
+    Elements::Text* label;
 
-    // Constructor takes NO arguments (no parent as it is top level)
-    Interface() {
+    Interface(Element* parent = nullptr): Element(parent) {
 
         // Name and parent (none)
         this->name = "Interface";
-        this->primeAncestor = this;
 
         this->style.size = Style::Size({ .width = Pct(100), .height = Pct(100) });
         this->style.background.color = Color(0.1, 0.1, 0.1, 1.0);
 
-
+        // Make circle
         this->circle = new Elements::Circle(this);
+        circle->pos = Pos(40, 40);
         circle->fillColor = Color(1, 0, 0, 1);
         circle->radius = 30;
+        circle->style.verticalAlign = Alignment::Center;
+        circle->style.horizontalAlign = Alignment::Center;
+
+        // Make label to go inside circle
+        this->label = new Elements::Text(circle);
+        this->label->setText("Drag\nMe");
+
+
+        // Callbacks
+        //--------------------------------------------------
 
         // Blue when mouse enters
         circle->onMouseEnter([this](Event& e) {
@@ -38,25 +49,11 @@ class Interface : public Element {
             circle->refresh(e);
         });
 
-        // Save initial position on click
-        circle->onMouseDown([this](Event& e) {
-            circle->refPos = circle->pos;
-        });
-
         // Drag circle
         circle->onDrag([this](Event& e) {
-            circle->pos = circle->refPos + e.mouse.drag;
+            circle->pos = circle->pos + e.mouse.diff;
             circle->refresh(e);
         });
-    }
-
-    // Returns own rect as there is no parent
-    Rect getParentRect() override {
-        return this->rect;
-    }
-
-    void refresh(Event& e) {
-        this->tell(&Element::refresh, e);
     }
 };
 

@@ -4,13 +4,13 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <algorithm>  // For std::remove
+#include <algorithm>
 #include <dbg.hpp>
 #include <Structs/Pos.hpp>
+
+#include "./Rect.hpp"
 #include "./Event/Event.hpp"
 #include "./Style/Style.hpp"
-
-// Forward declaration of Element class
 
 using namespace Dynamic;
 using namespace Style;
@@ -18,24 +18,6 @@ using namespace Style;
 class Element {
 
 public:
-
-    struct Rect {
-
-        float x = 0; float y = 0;
-        float width = 0; float height = 0;
-
-        Rect() {}
-
-        Rect(float x, float y, float width, float height) {
-            this->x = x; this->y = y;
-            this->width = width; this->height = height;
-        }
-
-        // Get center of rect as a position
-        Pos center() {
-            return Pos(x + width / 2, y + height / 2);
-        }
-    };
 
     // A group of elements
     struct Group {
@@ -99,6 +81,7 @@ public:
 
             parent->children.add(this);
 
+            // Inheret parent's prime ancestor and global state pointer
             this->primeAncestor = parent->primeAncestor;
             this->globalStatePtr = parent->globalStatePtr;
         }
@@ -164,6 +147,10 @@ public:
 
     // Draw wrapper for element's draw
     void drawSelf(Event& e) {
+
+        if (this->debugRect) {
+            this->dbgRect();
+        }
 
         // If / else to avoid two if statements for scissoring
         if (style.overflow == Overflow::Hidden)  {this->setScissor(); }
@@ -328,7 +315,7 @@ public:
             bool containsEvent = child->contains(e.mouse.pos);
 
             // If the child is a drag target, trigger the onDrag e
-            if ((e.mouse.lb || e.mouse.rb) && child->lastClickId == e.id) { child->mouseDrag(e); }
+            if ((e.mouse.lb || e.mouse.rb) && child->lastClickId == e.id) { child->mouseDrag(e); continue; }
 
             // Detect if mouse is entering or leaving
             if (containsEvent && !isMouseOverTarget) { child->isMouseOverTarget = true; child->mouseEnter(e); }
@@ -407,7 +394,9 @@ public:
 
     // Obtain the parent rect (can be overridden for top-level elements)
     virtual Rect getParentRect() {
+
         if (this->parent) { return this->parent->rect; }
+
         return Rect(0, 0, 0, 0);
     }
 
