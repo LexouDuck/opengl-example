@@ -52,8 +52,8 @@ endif
 COMPILER      ?= $(CC)
 COMPILERFLAGS ?= $(CFLAGS)
 ifeq ($(MODE),cpp)
-COMPILER      ?= $(CXX)
-COMPILERFLAGS ?= $(CXXFLAGS)
+COMPILER      = $(CXX)
+COMPILERFLAGS = $(CXXFLAGS)
 endif
 
 # C compiler
@@ -133,15 +133,15 @@ LIBSFML_windows	= -lglu32 -lglut32 -lopengl32
 LIBSFML_linux	= -lGL -lGLU -lglut
 LIBSFML_macos	= -framework Carbon -framework OpenGL -framework GLUT
 PKGSFML = $(PKGSFML_$(OSFLAG))
-PKGSFML_windows	= 
+PKGSFML_windows	= libsfml-dev
 PKGSFML_linux	= libsfml-dev
 PKGSFML_macos	= libsfml-dev
 
 # window/input system: SDL2 -> https://www.libsdl.org/
 LIBSDL2 = $(LIBSDL2_$(OSFLAG))
-LIBSDL2_windows	= -L$(SDLDIR) -lSDL2
-LIBSDL2_linux	= -L$(SDLDIR) -lSDL2
-LIBSDL2_macos	= -L$(SDLDIR)/SDL2.framework/Versions/Current -F. -framework SDL2
+LIBSDL2_windows	= -L$(LIBDIR)/SDL2 -lSDL2
+LIBSDL2_linux	= -L$(LIBDIR)/SDL2 -lSDL2
+LIBSDL2_macos	= -L$(LIBDIR)/SDL2/SDL2.framework/Versions/Current -F. -framework SDL2
 PKGSDL2 = $(PKGSDL2_$(OSFLAG))
 PKGSDL2_windows	= 
 PKGSDL2_linux	= libsdl2-dev
