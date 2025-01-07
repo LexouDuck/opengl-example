@@ -1,7 +1,7 @@
 #ifndef PolarPattern_H
 #define PolarPattern_H
 
-#include <Dynamic/Element.h>
+#include <Dynamic/Element.hpp>
 #include <dbg.hpp>
 #include <Structs/PolarEquation.hpp> // Include the PolarEquation header
 

@@ -2,7 +2,7 @@
 #define PolarGrid_H
 
 #include <cmath>
-#include <Dynamic/Element.h>
+#include <Dynamic/Element.hpp>
 #include <dbg.hpp>
 #include <vector>
 #include <algorithm> // For std::max_elementd

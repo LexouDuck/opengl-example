@@ -98,9 +98,9 @@ class Window : public Element {
         // Set correct button
         switch (button) {
 
-            case (MouseButton::Left): { p.mouse.lb = press; break; }
-            case (MouseButton::Middle): { p.mouse.mb = press; break; }
-            case (MouseButton::Right): { p.mouse.rb = press; break; }
+            case (MouseButton::Left): { p.mouse.lb.set(press, p.mouse.pos); break; }
+            case (MouseButton::Middle): { p.mouse.mb.set(press, p.mouse.pos); break; }
+            case (MouseButton::Right): { p.mouse.rb.set(press, p.mouse.pos); break; }
         }
 
         // Set dragStart / dragEnd
@@ -155,18 +155,28 @@ class Window : public Element {
     // Define keys
     enum Key {
 
-        Ctrl = 0
+        Ctrl = 57427,
+        Shift = 57425,
+        Alt = 57429,
+        Delete = 0x0000007FU
     };
 
     static void glfwKey(GLFWwindow* window, int key, int scancode, int action, int mods) {
 
         Window* self = Window::self;
         Event& p = self->p;
+
+        bool press;
+        if (action == GLFW_PRESS) { press = true; }
+        else if (action == GLFW_RELEASE) { press = false; }
         
-        if (action == GLFW_PRESS) {
-            dbg("Key pressed: %d", key);
-        } else if (action == GLFW_RELEASE) {
-            dbg("Key released: %d", key);
+        // Set correct button
+        switch (key) {
+
+            case (Key::Ctrl): { p.keyboard.ctrl.set(press, p.mouse.pos); break; }
+            case (Key::Shift): { p.keyboard.shift.set(press, p.mouse.pos); break; }
+            case (Key::Alt): { p.keyboard.alt.set(press, p.mouse.pos); break; }
+            case (Key::Delete): { p.keyboard.del.set(press, p.mouse.pos); break; }
         }
     }
 

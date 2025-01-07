@@ -3,7 +3,7 @@
 
 int main(void) {
 
-    // Create window
+    // Create windowe
     Window* window = new Window();
 
     // Create interface (child of window)

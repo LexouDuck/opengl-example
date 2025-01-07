@@ -18,6 +18,8 @@ namespace Style {
             this->set = true;
         }
 
+        inline Color operator*(const Color& other) const { return Color(r * other.r, g * other.g, b * other.b, a * other.a); }
+
         // "if (color)" returns true
         operator bool() { return this->set; }
     };

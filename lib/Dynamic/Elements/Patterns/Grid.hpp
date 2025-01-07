@@ -2,7 +2,7 @@
 #define Grid_H
 
 #include <cmath>
-#include <Dynamic/Element.h>
+#include <Dynamic/Element.hpp>
 #include <dbg.hpp>
 
 namespace Elements {
@@ -14,8 +14,9 @@ namespace Elements {
         Style::Color lineColor = Style::Color(1, 1, 1, 1);
         Style::Dist lineWidth = Style::Px(1);
         Style::Dist lineSpacing = Style::Px(10);
-        Style::Dist offsetX = Style::Px(0);
-        Style::Dist offsetY = Style::Px(0);
+        
+        Pos spacing;
+        Pos offset = Pos(0, 0);
 
         // Constructor with default position, dimensions, and fill color
         Grid(Element* parent = nullptr) : Element(parent) {
@@ -30,13 +31,23 @@ namespace Elements {
             // Set the Style::Colorfor the grid lines
             glColor4f(this->lineColor.r, this->lineColor.g, this->lineColor.b, this->lineColor.a);
 
-            float rowSpacing = lineSpacing.resolve(drawRect.width);
-            float colSpacing = lineSpacing.resolve(drawRect.height);
+            float colSpacing, rowSpacing;
+
+            if (spacing) {
+                colSpacing = fabs(spacing.x);
+                rowSpacing = fabs(spacing.y);
+            }
+
+            else {
+                colSpacing = lineSpacing.resolve(drawRect.width);
+                rowSpacing = lineSpacing.resolve(drawRect.height);
+            }
+
             float lw = lineWidth.resolve(drawRect.width);
 
             // Ensure offset values wrap within the bounds of the drawing area
-            float startX = fmod(offsetX.val, colSpacing);  // Wrap X offset
-            float startY = fmod(offsetY.val, rowSpacing);  // Wrap Y offset
+            float startX = fmod(offset.x, colSpacing);  // Wrap X offset
+            float startY = fmod(offset.y, rowSpacing);  // Wrap Y offset
 
             // Calculate the number of rows and columns based on spacing
             int rows = static_cast<int>(drawRect.height / rowSpacing) + 1;

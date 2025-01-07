@@ -10,18 +10,24 @@ using Json = nlohmann::json;
 // A position
 struct Pos {
 
-    float x = 0;
-    float y = 0;
+    double x = 0;
+    double y = 0;
     bool set = false;
 
     Pos() {}
 
-    Pos(float x, float y) {
+    Pos(double x, double y) {
         this->x = x; this->y = y;
         this->set = true;
     }
 
-    static Pos fromAngle(float angle) {
+    static Pos Invalid() {
+        Pos pos = Pos(std::nan(""), std::nan(""));
+        pos.set = false;
+        return pos;
+    }
+
+    static Pos fromAngle(double angle) {
         return Pos(
             cos(angle),
             sin(angle)
@@ -33,49 +39,111 @@ struct Pos {
     }
 
     void setState(const Json& obj) {
-        x = obj["x"]; y = obj["y"]; set = true;
+
+        x = obj.value("x", x);
+        y = obj.value("y", y);
+
+        set = true;
     }
 
     // Simply return whether Pos has been set
-    inline operator bool() const { return this->set; }
+    inline operator bool() const { return !(this->nan()) || this->set; }
 
-    // With pos
+    // Comparator operators based on magnitude
+    inline bool operator==(const Pos& other) const { return this->distanceTo(other) < 1e-3; }
+    inline bool operator!=(const Pos& other) const { return !(*this == other); }
+    inline bool operator<(const Pos& other) const { return this->pythag() < other.pythag(); }
+    inline bool operator<=(const Pos& other) const { return this->pythag() <= other.pythag(); }
+    inline bool operator>(const Pos& other) const { return this->pythag() > other.pythag(); }
+    inline bool operator>=(const Pos& other) const { return this->pythag() >= other.pythag(); }
+
+    // Arithmetic with Pos
     inline Pos operator+(const Pos& other) const { return Pos(x + other.x, y + other.y); }
     inline Pos operator-(const Pos& other) const { return Pos(x - other.x, y - other.y); }
+    inline Pos operator*(const Pos& other) const { return Pos(x * other.x, y * other.y); }
+    inline Pos operator/(const Pos& other) const { return Pos(x / other.x, y / other.y); }
 
-    // With scalar
-    inline Pos operator*(float scalar) const { return Pos(x * scalar, y * scalar); }
-    inline Pos operator/(float scalar) const { return Pos(x / scalar, y / scalar); }
-    inline Pos operator+(float scalar) const { return Pos(x + scalar, y + scalar); }
-    inline Pos operator-(float scalar) const { return Pos(x - scalar, y - scalar); }
-
-    // Compound assignment operators
+    // Compound assignment with Pos
     inline Pos& operator+=(const Pos& other) { x += other.x; y += other.y; return *this; }
     inline Pos& operator-=(const Pos& other) { x -= other.x; y -= other.y; return *this; }
-    inline Pos& operator*=(float scalar) { x *= scalar; y *= scalar; return *this; }
-    inline Pos& operator/=(float scalar) { x /= scalar; y /= scalar; return *this; }
+    inline Pos& operator*=(const Pos& other) { x *= other.x; y *= other.y; return *this; }
+    inline Pos& operator/=(const Pos& other) { x /= other.x; y /= other.y; return *this; }
+
+    // Arithmetic with scalar
+    inline Pos operator+(double scalar) const { return Pos(x + scalar, y + scalar); }
+    inline Pos operator-(double scalar) const { return Pos(x - scalar, y - scalar); }
+    inline Pos operator*(double scalar) const { return Pos(x * scalar, y * scalar); }
+    inline Pos operator/(double scalar) const { return Pos(x / scalar, y / scalar); }
+
+    // Compound assignment with scalar
+    inline Pos& operator+=(double scalar) { x += scalar; y += scalar; return *this; }
+    inline Pos& operator-=(double scalar) { x -= scalar; y -= scalar; return *this; }
+    inline Pos& operator*=(double scalar) { x *= scalar; y *= scalar; return *this; }
+    inline Pos& operator/=(double scalar) { x /= scalar; y /= scalar; return *this; }
 
     // Simple operations
-    inline float pythag() { return sqrt(x*x + y*y); }
-    inline float distanceTo(const Pos& pos) const { return (pos - *this).pythag();  }
-    inline float angleTo(const Pos& pos) const { return atan2(pos.y - this->y, pos.x - this->x); }
-    inline float angle() { return atan2(y, x); }
-    inline Pos centerTo(const Pos& pos) const { return (*this + pos) / 2; }
+    inline Pos setNan() { x = std::nan(""); y = std::nan(""); this->set = false; return *this; }
+    inline bool nan() const { return (std::isnan(x) || std::isnan(y)); }
+    inline bool isClose(Pos& other, double thresh = 1e-3) { return this->distanceTo(other) < thresh; }
+    inline double pythag() const { return sqrt(x*x + y*y); }
+    inline double distanceTo(const Pos& pos) const { return (pos - *this).pythag();  }
+    inline double angleTo(const Pos& pos) const { return atan2(pos.y - this->y, pos.x - this->x); }
+    inline double angle() const { return atan2(y, x); }
+    inline double dot(const Pos& other) const { return x * other.x + y * other.y; }
+    inline double cross(const Pos& other) const { return x * other.y - y * other.x; }
+    inline Pos centerTo(const Pos& pos) const { return (*this + pos) / 2.f; }
+    inline void normalize() { *this /= pythag(); }
+    inline Pos normalized() { return (*this) / this->pythag(); }
 
-    inline Pos reflect(const Pos& a, const Pos& b) const {
-        
-        // Step 1: Calculate the direction vector of AB
-        Pos direction = b - a;
+    inline void round() {
+        x = std::round(x);
+        y = std::round(y);
+    }
 
-        // Step 2: Calculate the projection of *this onto the line defined by a and b
-        float t = ((*this - a).x * direction.x + (*this - a).y * direction.y) / (direction.x * direction.x + direction.y * direction.y);
+    // Rotate by 90 deg
+    inline Pos swapAxis() { return Pos(y, x); }
 
-        // Projection point on the line AB
-        Pos projection = a + direction * t;
+    inline void reflect(Pos& a, Pos& b) {
 
-        // Step 3: Calculate the reflection by mirroring over the projection point
-        return projection * 2 - *this;
+        // Direction vector of the line
+        double dx = b.x - a.x;
+        double dy = b.y - a.y;
+
+        // Vector from a to this point
+        double px = this->x - a.x;
+        double py = this->y - a.y;
+
+        // Dot product of (px, py) and (dx, dy)
+        double dot = px * dx + py * dy;
+
+        // Length squared of the direction vector
+        double lenSq = dx * dx + dy * dy;
+
+        // Scale factor for projection
+        double scale = dot / lenSq;
+
+        // Projection point on the line
+        double projX = a.x + scale * dx;
+        double projY = a.y + scale * dy;
+
+        // Reflect the point about the line
+        this->x = 2 * projX - this->x;
+        this->y = 2 * projY - this->y;
+    }
+
+    // Return reflected copy
+    inline Pos reflected(Pos& a, Pos& b) {
+
+        Pos newPos = *this;
+        newPos.reflect(a, b);
+
+        return newPos;
     }
 };
+
+inline Pos operator+(double scalar, const Pos& pos) { return Pos(pos.x + scalar, pos.y + scalar); }
+inline Pos operator-(double scalar, const Pos& pos) { return Pos(pos.x - scalar, pos.y - scalar); }
+inline Pos operator*(double scalar, const Pos& pos) { return Pos(pos.x * scalar, pos.y * scalar); }
+inline Pos operator/(double scalar, const Pos& pos) { return Pos(pos.x / scalar, pos.y / scalar); }
 
 #endif // Pos_H

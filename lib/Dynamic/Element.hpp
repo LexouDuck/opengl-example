@@ -44,6 +44,55 @@ public:
         ListenerGroup(ListenerFunc f) : func(f) {}
     };
 
+    struct View {
+
+        Element* owner;
+        Pos pos = Pos(0, 0);
+        Pos scale = Pos(25, -25);
+        Pos minScale = scale / 50.f;
+        Pos maxScale = scale * 10.f;
+
+        // Default constructor
+        View(Element* owner = nullptr) {
+            this->owner = owner;
+        }
+
+        void zoom(Event& e) {
+
+            // Get mouse pos before scale change
+            Pos posA = toViewPos(e.mouse.pos);
+            
+            // Calculate the new scale based on mouse wheel input
+            scale *= tanh(0.1 * e.mouse.wheel.y) + 1.f;
+            if (scale > maxScale) { scale = maxScale; }
+            if (scale < minScale) { scale = minScale; }
+
+            // Get mouse pos after scale change
+            Pos posB = toViewPos(e.mouse.pos);
+
+            // Shift pos to account for difference
+            pos += posB - posA;
+        }
+
+        // Convert a space position to a display (screen) position
+        Pos toDisplayPos(Pos& viewPos) {
+            
+            Pos rectCenter = this->owner->rect.center();
+            Pos displayPos = rectCenter + (viewPos + pos) * scale;
+
+            return displayPos;
+        }
+
+        // Convert a display (screen) position to a space position
+        Pos toViewPos(Pos& displayPos) {
+
+            Pos rectCenter = this->owner->rect.center();
+            Pos viewPos = ((displayPos - rectCenter) / scale) - pos;
+            
+            return viewPos;
+        }
+    };
+
     Style::Style style;
     std::string name = "Element";
     std::vector<ListenerGroup> listenerGroups;
@@ -53,8 +102,11 @@ public:
 
     void* globalStatePtr = nullptr;
 
+    View* view = nullptr;
     Rect rect;
     Rect innerRect;
+
+    bool visible = true;
     float scrollOffset = 0;
     
     int key = 0;
@@ -66,9 +118,7 @@ public:
     bool debugRect = false;
     bool isMouseOverTarget = false;
 
-    // List of children elements
-    //std::vector<Element*> children;
-
+    // Element group representing our childrenh
     Group children;
 
     // Constructor that optionally takes a parent
@@ -90,6 +140,12 @@ public:
     // Destructor
     virtual ~Element() {
 
+        // If we are the owner of a view, we must delete it
+        if (this->view && this->view->owner == this) {
+            delete this->view;
+            this->view = nullptr;
+        }
+
         // Ensure all children are deleted when this element is destroyed
         for (auto* child : children.members) {
             delete child;
@@ -97,6 +153,9 @@ public:
 
         children.members.clear();
     }
+
+    // Events / handling / propagation
+    //--------------------------------------------------------------------------------
 
     // Register a listener for a specific function (used for lookup)
     void listen(ListenerGroup::ListenerFunc func, const std::function<void(Event&)>& listener) {
@@ -137,46 +196,6 @@ public:
         }
     }
 
-    // Anything that is done before draw
-    virtual void beforeDraw(Event& e) {
-        
-        for (auto* child : children.members) {
-            child->beforeDraw(e);
-        }
-    }
-
-    // Draw wrapper for element's draw
-    void drawSelf(Event& e) {
-
-        if (this->debugRect) {
-            this->dbgRect();
-        }
-
-        // If / else to avoid two if statements for scissoring
-        if (style.overflow == Overflow::Hidden)  {this->setScissor(); }
-    
-        this->draw(e);
-
-        // Draw all children
-        for (auto* child : children.members) {
-            child->drawSelf(e);
-        }
-
-        if (style.overflow == Overflow::Hidden) {
-            this->endScissor();
-        }
-
-        this->needsDraw = false;
-    }
-
-    // Default draw method that can be used by derived classes without explicitly overriding
-    virtual void draw(Event& e) {
-
-        if (this->style.background.color) {
-            this->drawFillRect(style.background.color, rect.x, rect.y, rect.width, rect.height);
-        }
-    }
-
     bool isDragTarget(Event& e) {
         return (e.mouse.lb || e.mouse.rb) && this->lastClickId == e.id;
     }
@@ -190,6 +209,7 @@ public:
     void onMouseEnter(const std::function<void(Event&)>& listener) { this->listen(&Element::mouseEnter, listener); }
     void onMouseLeave(const std::function<void(Event&)>& listener) { this->listen(&Element::mouseLeave, listener); }
     void onMouseWheel(const std::function<void(Event&)>& listener) { this->listen(&Element::mouseWheel, listener); }
+    void onKeyDown(const std::function<void(Event&)>& listener) { this->listen(&Element::keyDown, listener); }
 
     // Overridable functions
     virtual void mouseDown(Event& e) { propagateMouseDown(e); }
@@ -197,6 +217,8 @@ public:
     virtual void mouseMove(Event& e) { propagateMouseMove(e); }
     virtual void mouseDrag(Event& e) { propagateMouseDrag(e); }
     virtual void mouseWheel(Event& e) { propagateMouseWheel(e); }
+    virtual void keyDown(Event& e) { propagateKeyDown(e); }
+    virtual void keyUp(Event& e) { propagateKeyUp(e); }
 
     virtual void mouseEnter(Event& e) {
 
@@ -227,6 +249,9 @@ public:
 
             Element* child = *it;
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             bool containsEvent = child->contains(e.mouse.pos);
             bool isMouseOverTarget = child->isMouseOverTarget;
 
@@ -250,6 +275,9 @@ public:
 
             Element* child = *it;
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             bool containsEvent = child->contains(e.mouse.pos);
             bool isMouseOverTarget = child->isMouseOverTarget;
 
@@ -264,14 +292,15 @@ public:
 
     void propagateMouseDown(Event& e) {
 
-        dbg("%i", e.id);
-
         tell(&Element::mouseDown, e);
         if (!e.propagate) { return; }
 
         for (auto it = children.members.rbegin(); it != children.members.rend(); ++it) {
 
             Element* child = *it;
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
 
             // Check if the e position is within the child's rectangle
             if (child->contains(e.mouse.pos)) { // Use -> to access members
@@ -295,6 +324,9 @@ public:
 
             Element* child = *it;
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             if (child->contains(e.mouse.pos)) { child->mouseUp(e); }
             if (!e.propagate) { return; }
         }
@@ -311,6 +343,10 @@ public:
 
             // Get child and do some checking
             Element* child = *it;
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             bool isMouseOverTarget = child->isMouseOverTarget;
             bool containsEvent = child->contains(e.mouse.pos);
 
@@ -336,6 +372,9 @@ public:
 
             Element* child = *it;
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             if (child->lastClickId == e.id) { child->mouseDrag(e); }
             if (!e.propagate) { return; }
         }
@@ -350,6 +389,9 @@ public:
 
             Element* child = *it;
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             // Check if the e position is within the child's rectangle
             if (child->contains(e.mouse.pos)) {
                 child->mouseWheel(e);
@@ -361,26 +403,49 @@ public:
         }
     }
 
-    /*  An important part of event handling is knowing
-        whether a position lies within an element. This
-        function calculates for a rect, but can be overridden
-        to cover other kinds of shapes */
-    virtual bool contains(Pos& pos) {
+    void propagateKeyDown(Event& e) {
 
-        Rect& rect = this->rect;
-        float x = pos.x;
-        float y = pos.y;
+        tell(&Element::keyDown, e);
+        if (!e.propagate) { return; }
 
-        if (x < rect.x) { return false; }
-        if (y < rect.y) { return false; }
-        if (x > rect.x + rect.width) { return false; }
-        if (y > rect.y + rect.height) { return false; }
+        for (auto it = children.members.rbegin(); it != children.members.rend(); ++it) {
 
-        return true;
+            Element* child = *it;
+
+            if (!child->visible) { continue; }
+            if (child->contains(e.mouse.pos)) { child->keyDown(e); }
+            if (!e.propagate) { return; }
+        }
     }
 
-    /*  Helper function to allow collision logic
-        to be handled by children instead of self */
+    void propagateKeyUp(Event& e) {
+
+        tell(&Element::keyUp, e);
+        if (!e.propagate) { return; }
+
+        for (auto it = children.members.rbegin(); it != children.members.rend(); ++it) {
+
+            Element* child = *it;
+
+            if (!child->visible) { continue; }
+            if (child->contains(e.mouse.pos)) { child->keyUp(e); }
+            if (!e.propagate) { return; }
+        }
+    }
+
+    // Collision / Containment / Intersection
+    //--------------------------------------------------------------------------------
+
+    // Default behavior is to ask our rect if it contains a position
+    virtual bool contains(Pos& pos) {
+        return this->rect.contains(pos);
+    }
+
+    virtual bool intersects(Rect& rect) {
+        return this->rect.intersects(rect);
+    }
+
+    // Sometimes we need to skip and simply pass the concern to our children
     bool anyChildContains(Pos& pos) {
 
         for (auto* child: children.members) {
@@ -391,6 +456,44 @@ public:
 
         return false;
     }
+
+    bool anyChildIntersects(Rect& rect) {
+
+        for (auto* child: children.members) {
+            if (child->intersects(rect)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Sometimes we need to skip multiple levels and simply ask whether ANY decendent contains a position
+    bool decendantContains(Pos& pos) {
+        
+        for (auto* child : children.members) {
+
+            if (child->contains(pos)) { return true; }
+            if (child->decendantContains(pos)) { return true; }
+        }
+
+        return false;
+    }
+
+    // Sometimes we need to skip multiple levels and simply ask whether ANY decendent contains a position
+    bool decendantIntersects(Rect& rect) {
+        
+        for (auto* child : children.members) {
+
+            if (child->intersects(rect)) { return true; }
+            if (child->decendantIntersects(rect)) { return true; }
+        }
+
+        return false;
+    }
+
+    // Layout / Size resolution
+    //--------------------------------------------------------------------------------
 
     // Obtain the parent rect (can be overridden for top-level elements)
     virtual Rect getParentRect() {
@@ -411,6 +514,9 @@ public:
         Rect thisSize = Rect(0, 0, 0, 0);
 
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
 
             Rect childSize = child->resolveStaticSize();
 
@@ -473,8 +579,23 @@ public:
         if (style.size.maxHeight) { rect.height = std::min(rect.height, style.size.maxHeight.resolve(parentRect.height)); }
         if (style.size.minHeight) { rect.height = std::max(rect.height, style.size.minHeight.resolve(parentRect.height)); }
 
+        // Subtract margins if relative
+        if (style.size.width.setting == RELATIVE) {
+            if (style.margin.left) { rect.width -= style.margin.left.resolve(rect.width); }
+            if (style.margin.right) { rect.width -= style.margin.right.resolve(rect.width); }
+        }
+
+        if (style.size.height.setting == RELATIVE) {
+            if (style.margin.top) { rect.height -= style.margin.top.resolve(rect.height); }
+            if (style.margin.bottom) { rect.height -= style.margin.bottom.resolve(rect.height); }
+        }
+
         // Call on all children
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             child->resolveRelativeSize();
         }
 
@@ -494,6 +615,9 @@ public:
         //--------------------------------------------------
 
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
 
             float cMarginLeft = child->style.margin.left.resolve(child->rect.width);
             float cMarginRight = child->style.margin.right.resolve(child->rect.width);
@@ -543,6 +667,9 @@ public:
 
         for (auto* child: children.members) {
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             if (child->style.position.left) { child->rect.x = rect.x + child->style.position.left.resolve(rect.width); }
             if (child->style.position.right) { child->rect.x = rect.x + rect.width - child->rect.width - child->style.position.right.resolve(rect.width); }
             if (child->style.position.top) { child->rect.y = rect.y + child->style.position.top.resolve(rect.height); }
@@ -564,6 +691,10 @@ public:
         int maxGroupNum = 0;
 
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             maxGroupNum = std::max(maxGroupNum, child->groupNum);
         }
 
@@ -587,6 +718,9 @@ public:
             float maxY = std::numeric_limits<float>::lowest();
 
             for (auto* child : group) {
+
+                // Invisible children are ignored
+                if (!child->visible) { continue; }
 
                 // Children with a set position should be ignored as they have taken charge of their own position
                 if (child->style.position) { continue; }
@@ -616,6 +750,9 @@ public:
 
             // Apply alignment
             for (auto* child : group) {
+
+                // Invisible children are ignored
+                if (!child->visible) { continue; }
 
                 // Ignore children with set positions
                 if (child->style.position.left.set ||
@@ -676,6 +813,9 @@ public:
         // Allow children to override their own positions
         for (auto* child: children.members) {
 
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             if (child->style.position.left.set) { child->rect.x = this->rect.x + child->style.position.left.resolve(rect.width); }
             if (child->style.position.right.set) { child->rect.x = this->rect.x + this->rect.width - child->rect.width - child->style.position.right.resolve(rect.width); }
 
@@ -685,6 +825,10 @@ public:
 
         // Call centerChildren on all children to allow them to adjust as needed
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             child->centerChildren();
         }
     }
@@ -696,6 +840,9 @@ public:
         float minY = 999999999; float maxY = -999999999;
 
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
             
             float childMinX = child->rect.x;
             float childMinY = child->rect.y;
@@ -721,6 +868,10 @@ public:
 
         // Calculate child inner rects
         for (auto* child: children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             child->calcInnerRect();
         }
     }
@@ -731,18 +882,82 @@ public:
         offset += this->scrollOffset;
 
         for (auto* child : children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             child->rect.y += offset;
         }
 
         for (auto* child : children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
             child->calcScroll(offset);
         }
     }
 
-    Rect getRect() {
+    // Drawing
+    //--------------------------------------------------------------------------------
 
-        return Rect(0, 0, 0, 0);
+    // Anything that is done before draw
+    virtual void beforeDraw(Event& e) {
+        
+        for (auto* child : children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+
+            child->beforeDraw(e);
+        }
     }
+
+    // Draw wrapper for element's draw
+    void drawSelf(Event& e) {
+
+        if (this->debugRect) {
+            this->dbgRect();
+        }
+
+        // If / else to avoid two if statements for scissoring
+        if (style.overflow == Overflow::Hidden)  {this->setScissor(); }
+    
+        this->draw(e);
+
+        // Draw all children
+        for (auto* child : children.members) {
+
+            // Invisible children are ignored
+            if (!child->visible) { continue; }
+            
+            child->drawSelf(e);
+        }
+
+        if (style.overflow == Overflow::Hidden) {
+            this->endScissor();
+        }
+
+        this->needsDraw = false;
+    }
+
+    // Default draw method that can be used by derived classes without explicitly overriding
+    virtual void draw(Event& e) {
+
+        if (this->style.background.color) {
+            this->drawFillRect(style.background.color, rect.x, rect.y, rect.width, rect.height);
+        }
+    }
+
+    virtual void refresh(Event& e) {
+
+        this->needsDraw = true;
+        if (!this->parent) { return; }
+        this->parent->refresh(e);
+    }
+
+    // Drawing wrappers (should move to own file)
+    //--------------------------------------------------------------------------------
 
     void startScissor() {
         
@@ -764,15 +979,6 @@ public:
     void endScissor() {
         glDisable(GL_SCISSOR_TEST);
     }
-
-    virtual void refresh(Event& e) {
-        this->needsDraw = true;
-        if (!this->parent) { return; }
-        this->parent->refresh(e);
-    }
-
-    // Drawing wrappers
-    //--------------------------------------------------
 
     // Simple rect debugging function
     void dbgRect() {
@@ -841,6 +1047,7 @@ public:
 
         // Start drawing dashes and gaps
         while (totalLength < lineLength) {
+
             // Draw a dash
             float dashEnd = totalLength + dashLength;
             if (dashEnd > lineLength) dashEnd = lineLength; // Adjust if the dash exceeds the line length

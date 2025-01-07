@@ -22,7 +22,7 @@ namespace Elements {
         Style::Color fontColor = Style::Color(1, 1, 1, 1);
         float fontSize = 10.0f;
         float lineHeight = 2.0f;
-        bool center = true;
+        bool center = false;
 
         GLuint fontTexture;     // Texture for the font atlas
         stbtt_bakedchar charData[96];  // ASCII 32..126
@@ -70,12 +70,14 @@ namespace Elements {
     // Calculate the total height for the text block
     float totalHeight = 0;
     const char* t = text;
+
     while (*t) {
         if (*t == '\n') {
             totalHeight += desiredTextHeight * lineHeight;
         }
         ++t;
     }
+
     totalHeight += desiredTextHeight * lineHeight;  // Add height for the first line
 
     // Initialize min and max values for bounding box
@@ -163,7 +165,7 @@ namespace Elements {
     }
 
     // Return the bounding box dimensions
-    return Rect(minX, minY, maxX - minX, maxY - minY);
+    return Rect(minX, minY, maxX - minX, totalHeight);
 }
 
 
